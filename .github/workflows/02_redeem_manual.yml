@@ -23,7 +23,7 @@ jobs:
           fi
           curl -L "$SHEET_CSV_URL" -o registrations.csv
 
-      - name: Build player.json from CSV (needs 'original_name')
+      - name: Build player.json from CSV (needs id, fid, original_name)
         run: |
           python - <<'PY'
           import csv, json, re
@@ -56,7 +56,11 @@ jobs:
               if pid in seen:
                   continue
               seen.add(pid)
-              players.append({"fid": pid, "original_name": name})
+              players.append({
+                  "id": pid,              # required by redeem_code.py
+                  "fid": pid,             # used elsewhere / backwards compat
+                  "original_name": name   # required by redeem_code.py
+              })
 
           with open("player.json", "w", encoding="utf-8") as f:
               json.dump(players, f, indent=2, ensure_ascii=False)
