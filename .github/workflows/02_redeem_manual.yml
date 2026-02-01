@@ -23,38 +23,49 @@ jobs:
           fi
           curl -L "$SHEET_CSV_URL" -o registrations.csv
 
-      - name: Build player.json from CSV (column 'Player ID')
+      - name: Build player.json from CSV (needs 'original_name')
         run: |
           python - <<'PY'
           import csv, json, re
 
           PID_COL = "Player ID"
+          NAME_COL = "In-game name"
 
-          ids = []
+          rows = []
           with open("registrations.csv", newline="", encoding="utf-8") as f:
               reader = csv.DictReader(f)
               if not reader.fieldnames or PID_COL not in reader.fieldnames:
                   raise SystemExit(f"Could not find column '{PID_COL}'. Found: {reader.fieldnames}")
+
               for row in reader:
-                  raw = (row.get(PID_COL) or "").strip()
-                  raw = re.sub(r"\D+", "", raw)
-                  if raw:
-                      ids.append(raw)
+                  pid_raw = (row.get(PID_COL) or "").strip()
+                  pid = re.sub(r"\D+", "", pid_raw)  # digits only
+                  if not pid:
+                      continue
 
+                  name = (row.get(NAME_COL) or "").strip()
+                  if not name:
+                      name = f"player_{pid}"
+
+                  rows.append((pid, name))
+
+          # de-dup by pid, keep first name seen
           seen = set()
-          unique = []
-          for x in ids:
-              if x not in seen:
-                  seen.add(x)
-                  unique.append(x)
+          players = []
+          for pid, name in rows:
+              if pid in seen:
+                  continue
+              seen.add(pid)
+              players.append({"fid": pid, "original_name": name})
 
-          players = [{"fid": pid} for pid in unique]
           with open("player.json", "w", encoding="utf-8") as f:
-              json.dump(players, f, indent=2)
+              json.dump(players, f, indent=2, ensure_ascii=False)
 
           print(f"Players loaded: {len(players)}")
+          if players:
+              print("Example entry:", players[0])
           PY
-
+          
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
